@@ -1,0 +1,18 @@
+# Environments
+venv/
+env/
+.env
+
+# Cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Artifacts
+CuQ.zip
+results/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store

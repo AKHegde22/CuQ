@@ -1,0 +1,10 @@
+torch>=2.0.0
+transformer_lens
+einops
+datasets
+pytest
+tqdm
+pandas
+scikit-learn
+networkx
+matplotlib
