@@ -5,7 +5,10 @@ import gc
 import argparse
 
 from src.tasks.ioi import get_pythia_model, get_ioi_data
+from src.tasks.greater_than import get_greaterthan_data
 from src.quantization.rtn import apply_rtn_to_model
+from src.quantization.awq import apply_awq_to_model
+from src.quantization.gptq import apply_gptq_to_model
 from src.metrics.overlap import compute_jaccard_similarity, compute_precision_recall
 from acdc.TLACDCExperiment import TLACDCExperiment
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
@@ -27,7 +30,7 @@ def build_corr_from_edges(exp: TLACDCExperiment, edges: set) -> TLACDCCorrespond
             
     return new_corr
 
-def run_cross_application(model_name, n_bits, fp16_edges_path, quant_edges_path, task="ioi", num_examples=20, device="cpu"):
+def run_cross_application(model_name, n_bits, quantizer, fp16_edges_path, quant_edges_path, task="ioi", num_examples=20, device="cpu"):
     fp16_edges = load_edges(fp16_edges_path)
     quant_edges = load_edges(quant_edges_path)
     
@@ -47,7 +50,12 @@ def run_cross_application(model_name, n_bits, fp16_edges_path, quant_edges_path,
     # Load FP16 Model
     print(f"Loading FP16 model {model_name}...")
     fp16_model = get_pythia_model(model_name=model_name, device=device)
-    fp16_things = get_ioi_data(fp16_model, num_examples=num_examples, device=device, metric_name="kl_div")
+    if task == "ioi":
+        fp16_things = get_ioi_data(fp16_model, num_examples=num_examples, device=device, metric_name="kl_div")
+    elif task == "greater_than":
+        fp16_things = get_greaterthan_data(fp16_model, num_examples=num_examples, device=device, metric_name="prob_diff")
+    else:
+        raise ValueError(f"Unknown task: {task}")
     
     fp16_exp = TLACDCExperiment(
         model=fp16_model,
@@ -61,11 +69,25 @@ def run_cross_application(model_name, n_bits, fp16_edges_path, quant_edges_path,
     )
     
     # Load Quantized Model
-    print(f"Loading Quantized model ({n_bits}-bit)...")
+    print(f"Loading Quantized model ({n_bits}-bit, {quantizer.upper()})...")
     quant_model = get_pythia_model(model_name=model_name, device=device)
-    apply_rtn_to_model(quant_model, n_bits, skip_layers=['unembed', 'embed'])
-    quant_things = get_ioi_data(quant_model, num_examples=num_examples, device=device, metric_name="kl_div")
     
+    if task == "ioi":
+        quant_things = get_ioi_data(quant_model, num_examples=num_examples, device=device, metric_name="kl_div")
+    elif task == "greater_than":
+        quant_things = get_greaterthan_data(quant_model, num_examples=num_examples, device=device, metric_name="prob_diff")
+    else:
+        raise ValueError(f"Unknown task: {task}")
+        
+    if quantizer == "rtn":
+        apply_rtn_to_model(quant_model, n_bits, skip_layers=['unembed', 'embed'])
+    elif quantizer == "awq":
+        apply_awq_to_model(quant_model, n_bits, [quant_things.validation_data], skip_layers=['unembed', 'embed'])
+    elif quantizer == "gptq":
+        apply_gptq_to_model(quant_model, n_bits, [quant_things.validation_data], skip_layers=['unembed', 'embed'])
+    else:
+        raise ValueError(f"Unknown quantizer: {quantizer}")
+        
     quant_exp = TLACDCExperiment(
         model=quant_model,
         threshold=0.0,
@@ -128,18 +150,26 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="EleutherAI/pythia-14m")
     parser.add_argument("--bits", type=int, default=8)
+    parser.add_argument("--quantizer", type=str, default="rtn", choices=["rtn", "awq", "gptq"])
+    parser.add_argument("--task", type=str, default="ioi", choices=["ioi", "greater_than"])
     parser.add_argument("--fp16-edges", type=str, required=True, help="Path to fp16 edge pickle")
     parser.add_argument("--quant-edges", type=str, required=True, help="Path to quant edge pickle")
     parser.add_argument("--examples", type=int, default=10)
     parser.add_argument("--json-out", type=str, help="Path to save metrics as JSON")
     args = parser.parse_args()
     
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using device: {device}")
+    
     results = run_cross_application(
         model_name=args.model,
         n_bits=args.bits,
+        quantizer=args.quantizer,
+        task=args.task,
         fp16_edges_path=args.fp16_edges,
         quant_edges_path=args.quant_edges,
-        num_examples=args.examples
+        num_examples=args.examples,
+        device=device
     )
     
     if args.json_out:
