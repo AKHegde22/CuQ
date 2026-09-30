@@ -24,7 +24,23 @@ import torch
 import torch.nn.functional as F
 
 from acdc.acdc_utils import kl_divergence, TorchIndex
-from acdc.docstring.utils import AllDataThings
+import dataclasses
+from typing import Callable, Any
+
+@dataclasses.dataclass(frozen=False)
+class AllDataThings:
+    tl_model: HookedTransformer
+    validation_metric: Callable[[torch.Tensor], torch.Tensor]
+    validation_data: torch.Tensor
+    validation_labels: Optional[torch.Tensor]
+    validation_mask: Optional[torch.Tensor]
+    validation_patch_data: torch.Tensor
+    test_metrics: dict[str, Any]
+    test_data: torch.Tensor
+    test_labels: Optional[torch.Tensor]
+    test_mask: Optional[torch.Tensor]
+    test_patch_data: torch.Tensor
+
 from acdc.ioi.utils import get_gpt2_small
 from collections import OrderedDict
 
