@@ -1,10 +1,15 @@
 import os
 import subprocess
-from google.colab import drive
+import sys
 
-# 1. Mount Google Drive
-print("Mounting Google Drive to /content/drive ...")
-drive.mount('/content/drive')
+# 1. Verify Google Drive is mounted
+print("Checking for Google Drive...")
+if not os.path.exists('/content/drive/MyDrive'):
+    print("❌ Error: Google Drive is not mounted!")
+    print("To fix this, add a new code cell above this one and run:")
+    print("from google.colab import drive")
+    print("drive.mount('/content/drive')")
+    sys.exit(1)
 
 # 2. Setup Save Directory
 # All results will be saved securely to your Google Drive. 
