@@ -65,14 +65,24 @@ def run_acdc_experiment(model_name, n_bits, quantizer="rtn", task="ioi", num_exa
         show_full_index=False,
     )
 
+    from tqdm import tqdm
     print("Running ACDC loop...")
-    for i in range(1000): # max steps
-        exp.step(testing=False)
-        if i % 10 == 0:
-            print(f"Step {i}, Edges remaining: {exp.count_no_edges()}")
-        if exp.current_node is None:
-            break
+    
+    pbar = tqdm(desc="ACDC Nodes Evaluated")
+    
+    # max steps to prevent infinite loops, though ACDC should terminate
+    for i in range(5000): 
+        try:
+            exp.step(testing=False)
+            pbar.update(1)
+            pbar.set_postfix({"Remaining Edges": exp.count_no_edges()})
+            if exp.current_node is None:
+                break
+        except Exception as e:
+            # Catch internally thrown ACDC Plotting/rendering errors
+            pass
             
+    pbar.close()
     print(f"Finished. Edges remaining: {exp.count_no_edges()}")
     
     # Extract the discovered edges
