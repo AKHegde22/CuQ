@@ -41,10 +41,8 @@ class GlobalCache: # this dict stores the activations from the forward pass
             caches.append(self.corrupted_cache)
 
         # move all the parameters
-        for cache in caches: # mutable means this works..
-            for name in cache:
-                cache_keys = list(cache.keys())
-                for k in cache_keys:
-                    cache[k].to(device) #  = cache[name].to(device)
+        for cache in caches:
+            for k in list(cache.keys()):
+                cache[k] = cache[k].to(device)
 
         return self
